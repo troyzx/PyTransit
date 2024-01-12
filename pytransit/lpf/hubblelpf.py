@@ -414,6 +414,7 @@ class HubbleLPF(BaseLPF):
             alpha=0.5,
             label="model",
         )
+        axes[2].axhline(0, color="k", linestyle='--', alpha=0.5)
         axes[2].set_xlabel("Time [BJD - 2457000]")
         axes[2].set_ylabel("Residuals [ppm]")
 
