@@ -421,6 +421,8 @@ class BaseLPF(LogPosteriorFunction):
         self._init_p_planet()
         self._init_p_limb_darkening()
         self._init_p_baseline()
+        self._init_p_instrument()
+        self._init_norm_p()
         self.ps.freeze()
 
     def _init_p_orbit(self):
