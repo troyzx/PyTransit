@@ -141,9 +141,12 @@ class HubbleLPF(BaseLPF):
         # minpt=10,
     ):
         df_lc, df_par = read_hubble_spoc(datadir)
-        times = df_lc["time"].values
-        fluxes = df_lc["flux"].values
-        errors = df_lc["flux_err"].values
+        if times is None:
+            times = df_lc["time"].values
+        if fluxes is None:
+            fluxes = df_lc["flux"].values
+        if errors is None:
+            errors = df_lc["flux_err"].values
         period = df_par.P.values[0]
         zero_epoch = df_par.t_mid_bjd_tdb.values[0]
         sectors = array([1 for time in df_lc.time.values])

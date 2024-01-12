@@ -1,3 +1,4 @@
 test_hubble.ipynb
 .DS_Store
 *.csv
+*.pyc
