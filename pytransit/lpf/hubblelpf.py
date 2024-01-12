@@ -150,7 +150,8 @@ class HubbleLPF(BaseLPF):
         period = df_par.P.values[0]
         zero_epoch = df_par.t_mid_bjd_tdb.values[0]
         sectors = array([1 for time in df_lc.time.values])
-        data_scan = df_lc.data_scan.values
+        if data_scan is None:
+            data_scan = df_lc.data_scan.values
 
         self.lc = KeplerLC(
             times, fluxes, sectors, zero_epoch, period, trdur, bldur
