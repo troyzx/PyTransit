@@ -16,20 +16,47 @@
 
 import numpy as np
 
-from numpy import inf, isfinite, abs, sum, unique, ones, compress, array, mean, round, int64, where, float64, full_like, \
-    nan
+from numpy import (
+    inf,
+    isfinite,
+    abs,
+    sum,
+    unique,
+    ones,
+    compress,
+    array,
+    mean,
+    round,
+    int64,
+    where,
+    float64,
+    full_like,
+    nan,
+)
 
 from pytransit.orbits import epoch
 
 
 def fold_orbit_and_phase(time, period, origo, shift):
-    phase  = ((time - origo) / period + shift)
-    orbit  = (phase // 1).astype(int64)
-    phase  = (phase % 1. - 0.5) * period
-    return  orbit, phase
+    phase = (time - origo) / period + shift
+    orbit = (phase // 1).astype(int64)
+    phase = (phase % 1.0 - 0.5) * period
+    return orbit, phase
+
 
 class KeplerLC(object):
-    def __init__(self, time, flux, quarter, zero_epoch, period, d_transit, d_baseline, error=None, **kwargs):
+    def __init__(
+        self,
+        time,
+        flux,
+        quarter,
+        zero_epoch,
+        period,
+        d_transit,
+        d_baseline,
+        error=None,
+        **kwargs
+    ):
         """
         Kepler light curve.
 
@@ -49,75 +76,93 @@ class KeplerLC(object):
           max_ptp    : maximum point-to-point span per transit
           min_pts    : minimum number of points per transit
         """
-        self.t0   = zero_epoch
-        self.p    = period
-        self.max_ptp = kwargs.get('max_ptp', inf)
-        self.min_pts = kwargs.get('min_pts', 5)
+        self.t0 = zero_epoch
+        self.p = period
+        self.max_ptp = kwargs.get("max_ptp", inf)
+        self.min_pts = kwargs.get("min_pts", 5)
 
-        orbit, phase = fold_orbit_and_phase(time, period, zero_epoch, 0.5)
+        orbit, phase = np.array(fold_orbit_and_phase(time, period, zero_epoch, 0.5))
         orbit -= orbit.min()
-        msk_phase = abs(phase) < 0.5*d_baseline             # phase inclusion mask
-        msk_oot   = abs(phase) > 0.5*d_transit              # out-of-transit mask
-        msk_inc   = isfinite(time) & isfinite(flux) & msk_phase        # final data inclusion mask
-
-        self.time   = array(time, float64)
+        msk_phase = abs(phase) < 0.5 * d_baseline  # phase inclusion mask
+        msk_oot = abs(phase) > 0.5 * d_transit  # out-of-transit mask
+        msk_inc = (
+            isfinite(time) & isfinite(flux) & msk_phase
+        )  # final data inclusion mask
+        # print(time)
+        self.time = array(time, float64)
         self.phase = phase
-        self.flux   = array(flux, float64)
-        self.qidarr = array(quarter)                                   # quarter indices
-        self.tidarr, nt = orbit, orbit[-1]                             # transit indices
+        self.flux = array(flux, float64)
+        self.qidarr = array(quarter)  # quarter indices
+        self.tidarr, nt = orbit, orbit[-1]  # transit indices
+        # print(self.tidarr)
         self.msk_oot = msk_oot
         self.error = error if error is not None else full_like(self.time, nan)
 
         # Remove orbits with too few datapoints
         # -------------------------------------
-        npts = array([sum((self.tidarr == tid) & msk_inc) for tid in unique(self.tidarr)])
-        for tid,npt in enumerate(npts):
+        npts = array(
+            [sum((self.tidarr == tid) & msk_inc) for tid in unique(self.tidarr)]
+        )
+        for tid, npt in enumerate(npts):
             if npt < self.min_pts:
-                msk_inc[self.tidarr==tid] = 0
+                msk_inc[self.tidarr == tid] = 0
         self._compress_data(msk_inc)
         self._compute_indices()
 
         # Remove orbits with too big ptp range
         # ------------------------------------
         msk_inc = ones(self.npt, np.bool)
-        for tid,ptp in enumerate(list(map(np.ptp, self.normalized_flux_per_transit))):
+        for tid, ptp in enumerate(list(map(np.ptp, self.normalized_flux_per_transit))):
             if ptp > self.max_ptp:
-                msk_inc[self.tidarr==tid] = 0
+                msk_inc[self.tidarr == tid] = 0
         self._compress_data(msk_inc)
         self._compute_indices()
 
     def _compress_data(self, mask):
-        self.time    = compress(mask, self.time)
-        self.phase   = compress(mask, self.phase)
-        self.flux    = compress(mask, self.flux)
-        self.error   = compress(mask, self.error)
-        self.qidarr  = compress(mask, self.qidarr)
-        self.tidarr  = compress(mask, self.tidarr)
+        self.time = compress(mask, self.time)
+        self.phase = compress(mask, self.phase)
+        self.flux = compress(mask, self.flux)
+        self.error = compress(mask, self.error)
+        self.qidarr = compress(mask, self.qidarr)
+        self.tidarr = compress(mask, self.tidarr)
         self.msk_oot = compress(mask, self.msk_oot)
 
-    def _compute_indices(self): 
+    def _compute_indices(self):
         self.qids = unique(self.qidarr)
         self.tids = unique(self.tidarr)
-        self.nt   = len(self.tids)
-        self.npt  = self.time.size
+        self.nt = len(self.tids)
+        self.npt = self.time.size
 
-        self.qslices = [slice(*where(self.qidarr==qid)[0][[0,-1]]+[0,1]) for qid in self.qids]
-        self.qsldict = {qid : slice(*where(self.qidarr==qid)[0][[0,-1]]+[0,1]) for qid in self.qids}
+        self.qslices = [
+            slice(*where(self.qidarr == qid)[0][[0, -1]] + [0, 1]) for qid in self.qids
+        ]
+        self.qsldict = {
+            qid: slice(*where(self.qidarr == qid)[0][[0, -1]] + [0, 1])
+            for qid in self.qids
+        }
 
-        for i,tid in enumerate(self.tids):
-            self.tidarr[self.tidarr==tid] = i
+        for i, tid in enumerate(self.tids):
+            self.tidarr[self.tidarr == tid] = i
         self.tids = unique(self.tidarr)
-        self.tslices = [slice(*where(self.tidarr==tid)[0][[0,-1]]+[0,1]) for tid in self.tids]
-        self.orbit_n = array([epoch(t.mean(), self.t0, self.p) for t in self.time_per_transit])
+        self.tslices = [
+            slice(*where(self.tidarr == tid)[0][[0, -1]] + [0, 1]) for tid in self.tids
+        ]
+        self.orbit_n = array(
+            [epoch(t.mean(), self.t0, self.p) for t in self.time_per_transit]
+        )
 
     def get_transit(self, tid, normalize=False, mask_transit=False):
-        mask = self.tidarr==tid
-        return self.time[mask], self.normalized_flux[mask] if normalize else self.flux[mask]
+        mask = self.tidarr == tid
+        return (
+            self.time[mask],
+            # self.normalized_flux[mask] if normalize else self.flux[mask],
+            self.flux[mask],
+        )
 
     def remove_common_orbits(self, lc2):
         is_unique = ~np.in1d(self.orbit_n, lc2.orbit_n)
         mask = np.ones(self.npt, np.bool)
-        for tid,include in enumerate(is_unique):
+        for tid, include in enumerate(is_unique):
             mask[self.tslices[tid]] = include
         self._compress_data(mask)
         self._compute_indices()
@@ -125,7 +170,7 @@ class KeplerLC(object):
     @property
     def flux_per_transit(self):
         return [self.flux[sl] for sl in self.tslices]
-    
+
     @property
     def normalized_flux_per_transit(self):
         nf = self.normalized_flux
@@ -173,7 +218,7 @@ class KeplerLC(object):
     def flux_baseline(self):
         bl = np.zeros_like(self.flux)
         for tid in self.tids:
-            mask_tid = tid==self.tidarr
+            mask_tid = tid == self.tidarr
             mask_nrm = mask_tid & self.msk_oot
             bl[mask_tid] = np.median(self.flux[mask_nrm])
         return bl
