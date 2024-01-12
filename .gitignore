@@ -8,3 +8,6 @@
 *pdf
 build
 .DS_Store
+test_hubble.ipynb
+lc.csv
+par.csv
